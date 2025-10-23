@@ -1,0 +1,181 @@
+<!-- src/templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TikTok Profile Scraper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-8">TikTok Profile Scraper</h1>
+        
+        <!-- Profile Input Section -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Add Profiles to Monitor</h2>
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2">
+                    Enter TikTok usernames (one per line or separated by commas):
+                </label>
+                <textarea 
+                    id="profilesInput" 
+                    rows="6"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="tiktok&#10;charlidamelio&#10;khaby.lame"></textarea>
+            </div>
+            <button 
+                onclick="addProfiles()"
+                class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                Add Profiles
+            </button>
+        </div>
+
+        <!-- Actions Section -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Scraping Actions</h2>
+            <div class="flex space-x-4">
+                <button 
+                    onclick="runScraping()"
+                    class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">
+                    Run Scraping Now
+                </button>
+                <button 
+                    onclick="getStatus()"
+                    class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">
+                    Check Status
+                </button>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">Results & Status</h2>
+            <div id="results" class="space-y-4">
+                <p class="text-gray-600">Results will appear here...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function addProfiles() {
+            const profiles = document.getElementById('profilesInput').value;
+            const button = event.target;
+            button.disabled = true;
+            button.textContent = 'Adding...';
+
+            try {
+                const response = await fetch('/profiles', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ profiles })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage(`✅ ${data.message}`, 'success');
+                } else {
+                    showMessage(`❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`❌ Network error: ${error}`, 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Add Profiles';
+            }
+        }
+
+        async function runScraping() {
+            const button = event.target;
+            button.disabled = true;
+            button.textContent = 'Scraping...';
+
+            try {
+                const response = await fetch('/scrape', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResults(data.results);
+                    showMessage(`✅ ${data.message} at ${new Date(data.timestamp).toLocaleString()}`, 'success');
+                } else {
+                    showMessage(`❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`❌ Network error: ${error}`, 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Run Scraping Now';
+            }
+        }
+
+        async function getStatus() {
+            try {
+                const response = await fetch('/status');
+                const data = await response.json();
+                
+                if (!data.error) {
+                    showStatus(data);
+                } else {
+                    showMessage(`❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`❌ Network error: ${error}`, 'error');
+            }
+        }
+
+        function showResults(results) {
+            const container = document.getElementById('results');
+            container.innerHTML = '<h3 class="font-semibold mb-2">Scraping Results:</h3>';
+            
+            results.forEach(result => {
+                const statusIcon = result.status === 'success' ? '✅' : '❌';
+                const element = document.createElement('div');
+                element.className = 'border-l-4 border-blue-500 pl-4 py-1';
+                element.innerHTML = `
+                    <strong>${statusIcon} @${result.username}</strong> - 
+                    ${result.status === 'success' ? 
+                      `Snapshot: ${result.new_snapshot ? 'Created' : 'Skipped'} (${result.reason})` : 
+                      `Error: ${result.error}`}
+                `;
+                container.appendChild(element);
+            });
+        }
+
+        function showStatus(status) {
+            const container = document.getElementById('results');
+            container.innerHTML = `
+                <h3 class="font-semibold mb-2">System Status:</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-gray-50 p-3 rounded">
+                        <div class="text-sm text-gray-600">Total Profiles</div>
+                        <div class="text-2xl font-bold">${status.total_profiles}</div>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded">
+                        <div class="text-sm text-gray-600">Total Snapshots</div>
+                        <div class="text-2xl font-bold">${status.total_snapshots}</div>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded">
+                        <div class="text-sm text-gray-600">Recent (24h)</div>
+                        <div class="text-2xl font-bold">${status.recent_snapshots_24h}</div>
+                    </div>
+                </div>
+                ${status.monitored_profiles.length > 0 ? `
+                    <div class="mt-4">
+                        <h4 class="font-semibold">Monitored Profiles:</h4>
+                        <p class="text-gray-600">${status.monitored_profiles.map(p => `@${p}`).join(', ')}</p>
+                    </div>
+                ` : ''}
+            `;
+        }
+
+        function showMessage(message, type) {
+            const container = document.getElementById('results');
+            const color = type === 'success' ? 'text-green-600' : 'text-red-600';
+            container.innerHTML = `<p class="${color} font-semibold">${message}</p>`;
+        }
+    </script>
+</body>
+</html>
